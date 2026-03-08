@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Dish;
 use App\Models\Order;
+use App\Models\OrderItem;
 use Illuminate\Http\Request;
 
 class MenuPublicController extends Controller
@@ -61,10 +62,31 @@ class MenuPublicController extends Controller
             $order->items()->create($item);
         }
 
+        $this->deductInventory($order);
+
         return redirect()->route('tenant.order.status', [
             'tenant' => $tenant,
             'order'  => $order->id,
         ]);
+    }
+
+    private function deductInventory(Order $order): void
+    {
+        $items = $order->items()->with('dish.ingredients')->get();
+
+        $affectedIngredients = collect();
+
+        foreach ($items as $item) {
+            foreach ($item->dish->ingredients as $ingredient) {
+                $consumed = $item->quantity * $ingredient->pivot->quantity;
+                $newStock  = max(0, $ingredient->stock - $consumed);
+                $ingredient->update(['stock' => $newStock]);
+                $affectedIngredients->push($ingredient->refresh());
+            }
+        }
+
+        // Recalcular disponibilidad de platos afectados (sin duplicados)
+        $affectedIngredients->unique('id')->each->syncDishesAvailability();
     }
 
     public function status(Order $order)

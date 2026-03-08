@@ -8,6 +8,7 @@ use App\Http\Controllers\Tenant\DashboardController;
 use App\Http\Controllers\Tenant\MenuController;
 use App\Http\Controllers\Tenant\OrderController;
 use App\Http\Controllers\Tenant\ReportController;
+use App\Http\Controllers\Tenant\InventoryController;
 use App\Http\Controllers\Tenant\AuthController;
 use App\Http\Controllers\Public\MenuPublicController;
 
@@ -49,5 +50,13 @@ Route::middleware(['web', InitializeTenancyByPath::class])
             // Reportes
             Route::get('/reportes', [ReportController::class, 'index'])->name('tenant.reports');
             Route::get('/reportes/exportar', [ReportController::class, 'export'])->name('tenant.reports.export');
+
+            // Inventario
+            Route::get('/inventario', [InventoryController::class, 'index'])->name('tenant.inventory');
+            Route::post('/inventario/ingrediente', [InventoryController::class, 'store'])->name('tenant.inventory.store');
+            Route::patch('/inventario/ingrediente/{ingredient}/restock', [InventoryController::class, 'restock'])->name('tenant.inventory.restock');
+            Route::delete('/inventario/ingrediente/{ingredient}', [InventoryController::class, 'destroy'])->name('tenant.inventory.destroy');
+            Route::post('/inventario/plato/{dish}/ingrediente', [InventoryController::class, 'linkDish'])->name('tenant.inventory.link');
+            Route::delete('/inventario/plato/{dish}/ingrediente/{ingredient}', [InventoryController::class, 'unlinkDish'])->name('tenant.inventory.unlink');
         });
     });
