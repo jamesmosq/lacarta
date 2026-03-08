@@ -30,6 +30,10 @@
                class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-500 transition {{ request()->routeIs('tenant.orders*') ? 'bg-orange-500' : '' }}">
                 Pedidos
             </a>
+            <a href="{{ route('tenant.reports', ['tenant' => $t]) }}"
+               class="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-500 transition {{ request()->routeIs('tenant.reports*') ? 'bg-orange-500' : '' }}">
+                Reportes
+            </a>
         </nav>
 
         <div class="p-4 border-t border-orange-500">

@@ -7,6 +7,7 @@ use Stancl\Tenancy\Middleware\InitializeTenancyByPath;
 use App\Http\Controllers\Tenant\DashboardController;
 use App\Http\Controllers\Tenant\MenuController;
 use App\Http\Controllers\Tenant\OrderController;
+use App\Http\Controllers\Tenant\ReportController;
 use App\Http\Controllers\Tenant\AuthController;
 use App\Http\Controllers\Public\MenuPublicController;
 
@@ -44,5 +45,9 @@ Route::middleware(['web', InitializeTenancyByPath::class])
             // Pedidos
             Route::get('/pedidos', [OrderController::class, 'index'])->name('tenant.orders');
             Route::patch('/pedidos/{order}/estado', [OrderController::class, 'updateStatus'])->name('tenant.order.update');
+
+            // Reportes
+            Route::get('/reportes', [ReportController::class, 'index'])->name('tenant.reports');
+            Route::get('/reportes/exportar', [ReportController::class, 'export'])->name('tenant.reports.export');
         });
     });
