@@ -9,12 +9,14 @@ use App\Models\Category;
 
 class DashboardController extends Controller
 {
-    public function index(string $tenant)
+    public function index()
     {
+        $tenant = tenant('id');
+
         $stats = [
-            'orders_today'   => Order::whereDate('created_at', today())->count(),
-            'pending_orders' => Order::where('status', Order::STATUS_PENDING)->count(),
-            'total_dishes'   => Dish::count(),
+            'orders_today'     => Order::whereDate('created_at', today())->count(),
+            'pending_orders'   => Order::where('status', Order::STATUS_PENDING)->count(),
+            'total_dishes'     => Dish::count(),
             'total_categories' => Category::count(),
         ];
 

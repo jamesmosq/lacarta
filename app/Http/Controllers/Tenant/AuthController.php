@@ -8,12 +8,12 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
-    public function showLogin(string $tenant)
+    public function showLogin()
     {
-        return view('tenant.auth.login', ['tenantSlug' => $tenant]);
+        return view('tenant.auth.login', ['tenantSlug' => tenant('id')]);
     }
 
-    public function login(Request $request, string $tenant)
+    public function login(Request $request)
     {
         $credentials = $request->validate([
             'email'    => 'required|email',
@@ -22,17 +22,17 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-            return redirect()->route('tenant.dashboard', ['tenant' => $tenant]);
+            return redirect()->route('tenant.dashboard', ['tenant' => tenant('id')]);
         }
 
         return back()->withErrors(['email' => 'Credenciales incorrectas.']);
     }
 
-    public function logout(Request $request, string $tenant)
+    public function logout(Request $request)
     {
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        return redirect()->route('tenant.login', ['tenant' => $tenant]);
+        return redirect()->route('tenant.login', ['tenant' => tenant('id')]);
     }
 }

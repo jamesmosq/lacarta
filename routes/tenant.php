@@ -11,7 +11,7 @@ use App\Http\Controllers\Tenant\AuthController;
 use App\Http\Controllers\Public\MenuPublicController;
 
 // Rutas públicas del restaurante (cliente escanea QR)
-Route::middleware([InitializeTenancyByPath::class])
+Route::middleware(['web', InitializeTenancyByPath::class])
     ->prefix('/{tenant}')
     ->group(function () {
         Route::get('/menu', [MenuPublicController::class, 'index'])->name('tenant.menu.public');

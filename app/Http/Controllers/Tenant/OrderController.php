@@ -8,8 +8,10 @@ use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
-    public function index(string $tenant)
+    public function index()
     {
+        $tenant = tenant('id');
+
         $orders = Order::with(['table', 'items.dish'])
             ->whereDate('created_at', today())
             ->orderByRaw("CASE status WHEN 'pending' THEN 1 WHEN 'preparing' THEN 2 WHEN 'ready' THEN 3 ELSE 4 END")
@@ -19,7 +21,7 @@ class OrderController extends Controller
         return view('tenant.orders.index', compact('orders', 'tenant'));
     }
 
-    public function updateStatus(Request $request, string $tenant, Order $order)
+    public function updateStatus(Request $request, Order $order)
     {
         $request->validate([
             'status' => 'required|in:pending,preparing,ready,delivered',

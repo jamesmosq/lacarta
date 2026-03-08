@@ -14,7 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
         App\Providers\TenancyServiceProvider::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
+            if (tenancy()->initialized) {
+                return '/' . tenant('id') . '/admin/login';
+            }
+            return '/login';
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

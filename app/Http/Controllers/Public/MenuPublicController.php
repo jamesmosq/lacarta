@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Dish;
 use App\Models\Order;
-use App\Models\OrderItem;
 use Illuminate\Http\Request;
 
 class MenuPublicController extends Controller
 {
-    public function index(string $tenant)
+    public function index()
     {
+        $tenant = tenant('id');
+
         $categories = Category::with('activeDishes')
             ->where('active', true)
             ->orderBy('order')
@@ -21,14 +22,16 @@ class MenuPublicController extends Controller
         return view('public.menu', compact('categories', 'tenant'));
     }
 
-    public function order(Request $request, string $tenant)
+    public function order(Request $request)
     {
+        $tenant = tenant('id');
+
         $request->validate([
-            'customer_name' => 'nullable|string|max:100',
-            'items'         => 'required|array|min:1',
-            'items.*.dish_id'  => 'required|exists:dishes,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'notes'         => 'nullable|string|max:500',
+            'customer_name'       => 'nullable|string|max:100',
+            'items'               => 'required|array|min:1',
+            'items.*.dish_id'     => 'required|exists:dishes,id',
+            'items.*.quantity'    => 'required|integer|min:1',
+            'notes'               => 'nullable|string|max:500',
         ]);
 
         $total = 0;
@@ -64,8 +67,9 @@ class MenuPublicController extends Controller
         ]);
     }
 
-    public function status(string $tenant, Order $order)
+    public function status(Order $order)
     {
+        $tenant = tenant('id');
         $order->load('items.dish');
         return view('public.order-status', compact('order', 'tenant'));
     }

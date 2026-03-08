@@ -9,18 +9,19 @@ use Illuminate\Http\Request;
 
 class MenuController extends Controller
 {
-    public function index(string $tenant)
+    public function index()
     {
+        $tenant = tenant('id');
         $categories = Category::with('dishes')->orderBy('order')->get();
         return view('tenant.menu.index', compact('categories', 'tenant'));
     }
 
-    public function createCategory(string $tenant)
+    public function createCategory()
     {
-        return view('tenant.menu.create-category', compact('tenant'));
+        return view('tenant.menu.create-category', ['tenant' => tenant('id')]);
     }
 
-    public function storeCategory(Request $request, string $tenant)
+    public function storeCategory(Request $request)
     {
         $request->validate([
             'name'  => 'required|string|max:100',
@@ -29,17 +30,18 @@ class MenuController extends Controller
 
         Category::create($request->only('name', 'order'));
 
-        return redirect()->route('tenant.menu', ['tenant' => $tenant])
+        return redirect()->route('tenant.menu', ['tenant' => tenant('id')])
             ->with('success', 'Categoría creada.');
     }
 
-    public function createDish(string $tenant)
+    public function createDish()
     {
+        $tenant = tenant('id');
         $categories = Category::orderBy('name')->get();
         return view('tenant.menu.create-dish', compact('categories', 'tenant'));
     }
 
-    public function storeDish(Request $request, string $tenant)
+    public function storeDish(Request $request)
     {
         $request->validate([
             'category_id' => 'required|exists:categories,id',
@@ -50,17 +52,17 @@ class MenuController extends Controller
 
         Dish::create($request->only('category_id', 'name', 'description', 'price'));
 
-        return redirect()->route('tenant.menu', ['tenant' => $tenant])
+        return redirect()->route('tenant.menu', ['tenant' => tenant('id')])
             ->with('success', 'Plato agregado al menú.');
     }
 
-    public function toggleAvailable(Request $request, string $tenant, Dish $dish)
+    public function toggleAvailable(Request $request, Dish $dish)
     {
         $dish->update(['available' => !$dish->available]);
         return back()->with('success', 'Disponibilidad actualizada.');
     }
 
-    public function destroyDish(string $tenant, Dish $dish)
+    public function destroyDish(Dish $dish)
     {
         $dish->delete();
         return back()->with('success', 'Plato eliminado.');
