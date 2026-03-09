@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         App\Providers\TenancyServiceProvider::class,
     ])
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*');
         $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
             if (tenancy()->initialized) {
                 return '/' . tenant('id') . '/admin/login';
