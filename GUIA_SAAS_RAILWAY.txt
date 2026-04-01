@@ -1,0 +1,398 @@
+================================================================================
+     GUIA COMPLETA: SAAS MULTI-TENANT CON LARAVEL + POSTGRESQL EN RAILWAY
+================================================================================
+
+Proyecto de referencia: LaCarta — SaaS de menú digital para restaurantes
+Stack: Laravel 12, PostgreSQL 17, stancl/tenancy v3.9
+URL producción: https://lacarta-production.up.railway.app
+
+
+================================================================================
+1. ARQUITECTURA MULTI-TENANT
+================================================================================
+
+Un SaaS multi-tenant significa que una sola aplicación sirve a múltiples
+clientes (tenants), cada uno con sus propios datos aislados.
+
+Hay 3 estrategias principales:
+
+  A) Multi-base de datos: cada tenant tiene su propia BD
+     - Pro: máximo aislamiento
+     - Contra: requiere permisos CREATE DATABASE, no funciona bien en Railway
+
+  B) Schema por tenant (PostgreSQL):
+     - Cada tenant tiene su propio schema dentro de la misma BD
+     - Ejemplo: tenantpaisita.users, tenantotro.users
+     - Pro: funciona en Railway, buen aislamiento, sin permisos especiales
+     - ESTA ES LA QUE USAMOS
+
+  C) Single database con tenant_id:
+     - Todos los datos en las mismas tablas con columna tenant_id
+     - Pro: simple
+     - Contra: riesgo de filtrar datos entre tenants si hay un bug
+
+Para Railway con PostgreSQL, SIEMPRE usar Schema por tenant (opción B).
+
+
+================================================================================
+2. PAQUETE: stancl/tenancy v3
+================================================================================
+
+Instalación:
+  composer require stancl/tenancy --no-audit
+
+El --no-audit es porque tiene un advisory de seguridad conocido que no afecta
+el uso normal.
+
+Publicar configuración:
+  php artisan tenancy:install
+
+Esto crea:
+  - config/tenancy.php
+  - app/Providers/TenancyServiceProvider.php
+  - routes/tenant.php
+  - Migraciones para tablas tenants y domains
+
+Registrar el provider en bootstrap/app.php:
+  ->withProviders([
+      App\Providers\TenancyServiceProvider::class,
+  ])
+
+
+================================================================================
+3. CONFIGURACION CRITICA: config/tenancy.php
+================================================================================
+
+PUNTO CLAVE — Para Railway con PostgreSQL, cambiar el manager de pgsql:
+
+  INCORRECTO (crea bases de datos separadas, falla en Railway):
+    'pgsql' => Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
+
+  CORRECTO (crea schemas dentro de la misma BD, funciona en Railway):
+    'pgsql' => Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLSchemaManager::class,
+
+Si no haces este cambio, al registrar un tenant en producción dará error 500
+porque el usuario de PostgreSQL de Railway no tiene permisos para crear
+bases de datos nuevas.
+
+
+================================================================================
+4. ESTRUCTURA DE MIGRACIONES
+================================================================================
+
+Hay DOS carpetas de migraciones:
+
+  database/migrations/          → migraciones CENTRALES (se ejecutan una vez)
+    - tenants (tabla de clientes del SaaS)
+    - domains
+    - sessions
+    - cache
+    - jobs
+
+  database/migrations/tenant/   → migraciones de TENANT (se ejecutan por cada
+    - users                       tenant al registrarse)
+    - categories
+    - dishes
+    - orders
+    - etc.
+
+IMPORTANTE: Las migraciones centrales las corre:
+  php artisan migrate
+
+Las migraciones de tenant las corre automáticamente stancl/tenancy
+cuando se crea un tenant (evento TenantCreated → Job MigrateDatabase).
+
+En config/tenancy.php:
+  'migration_parameters' => [
+      '--force' => true,
+      '--path' => [database_path('migrations/tenant')],
+      '--realpath' => true,
+  ],
+
+
+================================================================================
+5. IDENTIFICACION DE TENANTS: PATH-BASED
+================================================================================
+
+Usamos path-based tenancy porque Railway no da subdominios wildcard sin
+dominio propio. El tenant se identifica por el primer segmento de la URL:
+
+  https://tuapp.up.railway.app/mi-restaurante/admin/login
+                                ^^^^^^^^^^^^^^
+                                tenant id
+
+En routes/tenant.php:
+  Route::middleware(['web', InitializeTenancyByPath::class])
+      ->prefix('/{tenant}')
+      ->group(function () {
+          // rutas del tenant
+      });
+
+El middleware InitializeTenancyByPath busca el tenant por ID en la BD central
+y cambia el search_path de PostgreSQL al schema del tenant automáticamente.
+
+
+================================================================================
+6. MODELO TENANT
+================================================================================
+
+app/Models/Tenant.php debe extender de stancl/tenancy:
+
+  use Stancl\Tenancy\Database\Models\Tenant as BaseTenant;
+  use Stancl\Tenancy\Database\Concerns\HasDatabase;
+  use Stancl\Tenancy\Database\Concerns\HasDomains;
+
+  class Tenant extends BaseTenant
+  {
+      use HasDatabase, HasDomains;
+
+      public static function getCustomColumns(): array
+      {
+          return ['id', 'name', 'email', 'slug', 'plan', 'trial_ends_at'];
+      }
+  }
+
+El ID del tenant es el slug (ej: "paisita") y se usa en la URL.
+
+
+================================================================================
+7. CREAR UN TENANT PROGRAMATICAMENTE
+================================================================================
+
+En el controlador de registro:
+
+  // 1. Crear el tenant (dispara CreateDatabase + MigrateDatabase automáticamente)
+  $tenant = Tenant::create([
+      'id'    => $request->slug,   // este es el ID que va en la URL
+      'name'  => $request->restaurant_name,
+      'email' => $request->email,
+      'slug'  => $request->slug,
+      'plan'  => 'trial',
+      'trial_ends_at' => now()->addDays(14),
+  ]);
+
+  // 2. Crear usuario dentro de la BD del tenant
+  tenancy()->initialize($tenant);
+
+  TenantUser::create([
+      'name'     => $request->restaurant_name,
+      'email'    => $request->email,
+      'password' => Hash::make($request->password),
+      'role'     => 'owner',
+  ]);
+
+  tenancy()->end();
+
+Al hacer Tenant::create(), stancl/tenancy automáticamente:
+  1. Crea el schema en PostgreSQL (ej: tenantpaisita)
+  2. Ejecuta todas las migraciones de database/migrations/tenant/
+  3. El tenant queda listo para usar
+
+
+================================================================================
+8. VARIABLES DE ENTORNO EN RAILWAY (PRODUCCION)
+================================================================================
+
+Variables obligatorias para que funcione:
+
+  APP_NAME="NombreDeTuApp"
+  APP_ENV="production"
+  APP_KEY="base64:..."              ← generar con: php artisan key:generate --show
+  APP_DEBUG="false"
+  APP_URL="https://tuapp.up.railway.app"
+  APP_LOCALE="es"
+  APP_FALLBACK_LOCALE="en"
+  APP_MAINTENANCE_DRIVER="file"
+  BCRYPT_ROUNDS="12"
+  LOG_CHANNEL="stderr"             ← logs van a stderr, visible en Railway Logs
+  LOG_LEVEL="error"
+
+  DB_CONNECTION="pgsql"
+  DB_HOST="postgres.railway.internal"   ← host interno (red privada Railway)
+  DB_PORT="5432"
+  DB_DATABASE="railway"
+  DB_USERNAME="postgres"
+  DB_PASSWORD="tu_password_de_railway"
+
+  SESSION_DRIVER="cookie"          ← IMPORTANTE: NO usar "database" con tenancy
+  SESSION_LIFETIME="120"
+  SESSION_ENCRYPT="false"
+  SESSION_PATH="/"
+  SESSION_DOMAIN="null"
+
+  BROADCAST_CONNECTION="log"
+  FILESYSTEM_DISK="local"
+  QUEUE_CONNECTION="database"
+  CACHE_STORE="database"
+  VIEW_COMPILED_PATH="/app/storage/framework/views"
+
+  MAIL_MAILER="log"
+  MAIL_FROM_ADDRESS="hello@example.com"
+  MAIL_FROM_NAME="NombreDeTuApp"
+
+
+ERRORES COMUNES CON VARIABLES:
+
+  - SESSION_DRIVER="database" con tenancy schema-based → ERROR 500 en rutas tenant
+    Causa: la tabla sessions está en schema public pero al inicializar el tenant
+    el search_path cambia al schema del tenant y sessions desaparece.
+    Solución: SESSION_DRIVER="cookie"
+
+  - No confundir DB_HOST interno con el público:
+    Interno:  postgres.railway.internal:5432  (usar dentro de Railway)
+    Público:  mainline.proxy.rlwy.net:42458   (usar desde fuera, ej: tu local)
+
+
+================================================================================
+9. nixpacks.toml — BUILD EN RAILWAY
+================================================================================
+
+Railway usa nixpacks para construir la app. Crear este archivo en la raíz:
+
+  [phases.setup]
+  nixPkgs = [
+    "php83",
+    "php83Extensions.pdo",
+    "php83Extensions.pdo_pgsql",
+    "php83Extensions.pgsql",
+    "php83Extensions.mbstring",
+    "php83Extensions.xml",
+    "php83Extensions.tokenizer",
+    "php83Extensions.ctype",
+    "php83Extensions.curl",
+    "php83Extensions.openssl",
+    "php83Extensions.fileinfo",
+    "composer"
+  ]
+
+  [phases.install]
+  cmds = ["composer install --no-dev --optimize-autoloader"]
+
+  [phases.build]
+  cmds = [
+      "php artisan config:cache",
+      "php artisan route:cache",
+      "php artisan view:cache"
+  ]
+
+  [start]
+  cmd = "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT"
+
+PUNTOS IMPORTANTES:
+  - Las extensiones pdo_pgsql y pgsql son OBLIGATORIAS para PostgreSQL
+  - php artisan migrate --force ejecuta migraciones CENTRALES en cada deploy
+  - El puerto lo asigna Railway via variable $PORT automáticamente
+  - NO incluir migraciones de tenant en el start, esas las maneja stancl/tenancy
+
+
+================================================================================
+10. HTTPS Y PROXIES EN RAILWAY
+================================================================================
+
+Railway usa un load balancer/proxy delante de tu app. Sin configuración,
+Laravel no sabe que está detrás de HTTPS y genera URLs con http://, causando
+warnings del navegador al enviar formularios.
+
+Solución en bootstrap/app.php:
+
+  ->withMiddleware(function (Middleware $middleware): void {
+      $middleware->trustProxies(at: '*');
+      // ... resto del middleware
+  })
+
+Esto le dice a Laravel que confíe en todos los proxies y use el protocolo
+correcto (https) para generar URLs.
+
+
+================================================================================
+11. TABLA SESSIONS
+================================================================================
+
+Si usas SESSION_DRIVER="database", necesitas la migración de la tabla sessions.
+Laravel no la incluye por defecto, hay que crearla:
+
+  php artisan make:session-table
+  (o crearla manualmente en database/migrations/)
+
+PERO con tenancy schema-based, la tabla sessions queda en el schema public
+y deja de ser accesible desde el contexto del tenant. Por eso la solución
+definitiva es SESSION_DRIVER="cookie".
+
+Si por alguna razón necesitas SESSION_DRIVER="database", la alternativa es
+incluir la migración de sessions en database/migrations/tenant/ para que
+cada tenant tenga su propia tabla sessions en su schema.
+
+
+================================================================================
+12. FLUJO COMPLETO DE REGISTRO DE UN NUEVO CLIENTE
+================================================================================
+
+1. Cliente va a: https://tuapp.up.railway.app/registro
+2. Llena formulario: nombre restaurante, slug (ej: mi-restaurante), email, password
+3. Tu app hace Tenant::create([...])
+4. stancl/tenancy crea schema "tenantmi-restaurante" en PostgreSQL
+5. stancl/tenancy ejecuta todas las migraciones de database/migrations/tenant/
+6. Tu app inicializa el tenant y crea el usuario owner
+7. Cliente puede entrar a: https://tuapp.up.railway.app/mi-restaurante/admin/login
+
+Todo automático, sin intervención manual.
+
+
+================================================================================
+13. CHECKLIST ANTES DE HACER DEPLOY
+================================================================================
+
+[ ] nixpacks.toml creado con extensiones PHP correctas
+[ ] config/tenancy.php usa PostgreSQLSchemaManager (NO PostgreSQLDatabaseManager)
+[ ] SESSION_DRIVER=cookie en variables de Railway
+[ ] trustProxies configurado en bootstrap/app.php
+[ ] APP_KEY generado y configurado
+[ ] APP_DEBUG=false en producción
+[ ] LOG_CHANNEL=stderr (para ver logs en Railway)
+[ ] Migraciones centrales incluyen sessions (con check hasTable para evitar duplicado)
+[ ] Migraciones de tenant en database/migrations/tenant/
+[ ] Variables DB_* apuntando al PostgreSQL de Railway
+[ ] APP_URL con la URL correcta de Railway (con https://)
+
+
+================================================================================
+14. COMO VER ERRORES EN RAILWAY
+================================================================================
+
+- Deploy Logs: errores durante el build y el inicio del servidor
+- Logs (runtime): errores mientras la app está corriendo
+  ← AQUI aparecen los errores 500 de Laravel cuando LOG_CHANNEL=stderr
+
+Para depurar temporalmente:
+  APP_DEBUG=true → muestra el error completo en el navegador
+  (recuerda volver a false después)
+
+
+================================================================================
+15. ERRORES QUE COMETIMOS Y SUS SOLUCIONES
+================================================================================
+
+ERROR 1: 500 al registrar tenant
+  Causa: PostgreSQLDatabaseManager intenta CREATE DATABASE, Railway no lo permite
+  Solución: cambiar a PostgreSQLSchemaManager en config/tenancy.php
+
+ERROR 2: Migración sessions falla con "relation already exists"
+  Causa: la tabla ya existía en la BD de Railway de un deploy anterior
+  Solución: agregar check Schema::hasTable('sessions') antes de crear
+
+ERROR 3: Warning "conexión no segura" al enviar formularios
+  Causa: Laravel no sabe que está detrás del proxy HTTPS de Railway
+  Solución: $middleware->trustProxies(at: '*') en bootstrap/app.php
+
+ERROR 4: 500 al acceder a /{tenant}/admin/login
+  Causa: SESSION_DRIVER=database busca tabla sessions en schema del tenant
+  Solución: SESSION_DRIVER=cookie
+
+ERROR 5: Build atascado en Railway
+  Causa: incidente en los servidores de Railway (no es tu código)
+  Solución: esperar y hacer Redeploy manual
+
+
+================================================================================
+FIN DE LA GUIA
+================================================================================

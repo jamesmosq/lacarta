@@ -22,7 +22,14 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-            return redirect()->route('tenant.dashboard', ['tenant' => tenant('id')]);
+            $user = Auth::user();
+            $t    = tenant('id');
+
+            return match(true) {
+                $user->isKitchen() => redirect()->route('tenant.kitchen', ['tenant' => $t]),
+                $user->isWaiter()  => redirect()->route('tenant.waiter',  ['tenant' => $t]),
+                default            => redirect()->route('tenant.dashboard', ['tenant' => $t]),
+            };
         }
 
         return back()->withErrors(['email' => 'Credenciales incorrectas.']);

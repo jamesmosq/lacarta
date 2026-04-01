@@ -7,20 +7,31 @@ use App\Models\Category;
 use App\Models\Dish;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\RestaurantTable;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 
 class MenuPublicController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $tenant = tenant('id');
+        $tenant      = tenant('id');
+        $tenantModel = Tenant::find($tenant);
+
+        if (!$tenantModel->is_open) {
+            return view('public.closed', compact('tenant', 'tenantModel'));
+        }
 
         $categories = Category::with('activeDishes')
             ->where('active', true)
             ->orderBy('order')
             ->get();
 
-        return view('public.menu', compact('categories', 'tenant'));
+        $table = $request->filled('mesa')
+            ? RestaurantTable::where('id', $request->mesa)->where('active', true)->first()
+            : null;
+
+        return view('public.menu', compact('categories', 'tenant', 'table'));
     }
 
     public function order(Request $request)
@@ -29,6 +40,7 @@ class MenuPublicController extends Controller
 
         $request->validate([
             'customer_name'       => 'nullable|string|max:100',
+            'table_id'            => 'nullable|exists:tables,id',
             'items'               => 'required|array|min:1',
             'items.*.dish_id'     => 'required|exists:dishes,id',
             'items.*.quantity'    => 'required|integer|min:1',
@@ -53,6 +65,7 @@ class MenuPublicController extends Controller
 
         $order = Order::create([
             'customer_name' => $request->customer_name,
+            'table_id'      => $request->table_id ?: null,
             'status'        => Order::STATUS_PENDING,
             'total'         => $total,
             'notes'         => $request->notes,

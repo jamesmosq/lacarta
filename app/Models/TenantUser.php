@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\Order;
 
 class TenantUser extends Authenticatable
 {
@@ -22,8 +23,22 @@ class TenantUser extends Authenticatable
         ];
     }
 
-    public function isOwner(): bool
+    public function isOwner(): bool   { return $this->role === 'owner'; }
+    public function isWaiter(): bool  { return $this->role === 'waiter'; }
+    public function isKitchen(): bool { return $this->role === 'kitchen'; }
+
+    public function orders()
     {
-        return $this->role === 'owner';
+        return $this->hasMany(Order::class, 'user_id');
+    }
+
+    public static function roleLabel(string $role): string
+    {
+        return match($role) {
+            'owner'   => 'Dueño',
+            'waiter'  => 'Mesero',
+            'kitchen' => 'Cocina',
+            default   => $role,
+        };
     }
 }

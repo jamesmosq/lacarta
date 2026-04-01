@@ -5,12 +5,20 @@
 @section('content')
 <div class="mb-8">
     <h2 class="text-2xl font-bold text-gray-900">Pedidos de hoy</h2>
-    <p class="text-gray-500">{{ now()->format('d/m/Y') }}</p>
+    <p class="text-gray-500 text-sm" id="fecha-pedidos"></p>
+    <script>
+        const ahora = new Date();
+        const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Bogota' };
+        const fecha = ahora.toLocaleDateString('es-CO', opciones);
+        document.getElementById('fecha-pedidos').textContent = fecha.charAt(0).toUpperCase() + fecha.slice(1);
+    </script>
 </div>
 
 @if($orders->isEmpty())
 <div class="bg-white rounded-xl shadow-sm px-6 py-16 text-center text-gray-400">
-    <div class="text-5xl mb-4">🛒</div>
+    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+    </div>
     <p class="text-lg font-medium">No hay pedidos hoy</p>
 </div>
 @else

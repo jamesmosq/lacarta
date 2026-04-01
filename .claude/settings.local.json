@@ -14,7 +14,8 @@
       "Bash(mv C:/wamp64/www/misaas C:/wamp64/www/lacarta)",
       "Bash(php artisan:*)",
       "Bash(grep:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git:*)"
     ]
   }
 }

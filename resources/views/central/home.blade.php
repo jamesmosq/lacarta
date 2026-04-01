@@ -63,13 +63,38 @@
         </div>
     </section>
 
-    @if(session('success'))
-    <div class="max-w-xl mx-auto my-8 px-6">
-        <div class="bg-green-50 border border-green-200 text-green-800 px-6 py-4 rounded-xl text-center text-sm">
-            {{ session('success') }}
-        </div>
-    </div>
-    @endif
 
 </div>
+
+@if(session('login_url'))
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    const loginUrl = @json(session('login_url'));
+    const restaurantName = @json(session('restaurant_name'));
+
+    Swal.fire({
+        icon: 'success',
+        title: '¡Tu restaurante está listo!',
+        html: `
+            <p class="text-gray-600 mb-3">
+                Bienvenido a <strong>${restaurantName}</strong>.<br>
+                Esta es la URL de tu panel de administración:
+            </p>
+            <div class="bg-gray-100 rounded-lg px-4 py-2 text-sm font-mono text-gray-700 break-all mb-2">
+                ${loginUrl}
+            </div>
+            <p class="text-xs text-gray-400">Guárdala para acceder en el futuro.</p>
+        `,
+        confirmButtonText: 'Ir a mi panel →',
+        confirmButtonColor: '#ea580c',
+        allowOutsideClick: false,
+        showCloseButton: false,
+        timer: 15000,
+        timerProgressBar: true,
+    }).then(() => {
+        window.location.href = loginUrl;
+    });
+</script>
+@endif
+
 @endsection

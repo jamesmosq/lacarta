@@ -49,8 +49,8 @@ class TenantRegisterController extends Controller
 
         tenancy()->end();
 
-        return redirect()->route('home')->with('success',
-            "¡Restaurante registrado! Ingresa en /{$request->slug}/admin/login"
-        );
+        return redirect()->route('home')->with('login_url',
+            url("/{$request->slug}/admin/login")
+        )->with('restaurant_name', $request->restaurant_name);
     }
 }

@@ -13,7 +13,11 @@
 
     <div class="bg-orange-600 text-white px-6 py-8 text-center">
         <h1 class="text-2xl font-bold tracking-tight">{{ tenant('name') }}</h1>
-        <p class="text-orange-200 text-sm mt-1">Menu digital</p>
+        @if($table)
+            <p class="text-orange-200 text-sm mt-1">{{ $table->name }}</p>
+        @else
+            <p class="text-orange-200 text-sm mt-1">Menu digital</p>
+        @endif
     </div>
 
     {{-- Barra del carrito --}}
@@ -80,6 +84,10 @@
 
             <form method="POST" action="{{ route('tenant.menu.order', ['tenant' => $tenant]) }}">
                 @csrf
+                @if($table)
+                    <input type="hidden" name="table_id" value="{{ $table->id }}">
+                    <p class="text-sm text-gray-500 mb-4">Mesa: <strong>{{ $table->name }}</strong></p>
+                @endif
                 <div id="order-summary" class="space-y-2 mb-4 pb-4 border-b border-gray-100"></div>
                 <div id="order-inputs"></div>
 
