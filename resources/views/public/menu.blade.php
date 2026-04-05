@@ -11,22 +11,33 @@
 
 <div class="max-w-2xl mx-auto min-h-screen">
 
-    <div class="bg-orange-600 text-white px-6 py-8 text-center">
+    <div class="bg-orange-600 text-white px-6 py-8 text-center relative">
         <h1 class="text-2xl font-bold tracking-tight">{{ tenant('name') }}</h1>
         @if($table)
-            <p class="text-orange-200 text-sm mt-1">{{ $table->name }}</p>
+            <p class="text-orange-200 text-sm mt-1">{{ $t['table'] }}: {{ $table->name }}</p>
         @else
-            <p class="text-orange-200 text-sm mt-1">Menu digital</p>
+            <p class="text-orange-200 text-sm mt-1">{{ $t['digital_menu'] }}</p>
         @endif
+        {{-- Toggle idioma --}}
+        <div class="absolute top-4 right-4 flex gap-1">
+            <a href="{{ route('tenant.menu.lang', ['tenant' => $tenant, 'lang' => 'es']) }}"
+               class="text-xs px-2 py-1 rounded {{ ($lang ?? 'es') === 'es' ? 'bg-white text-orange-600 font-bold' : 'text-orange-200 hover:text-white' }} transition">
+                ES
+            </a>
+            <a href="{{ route('tenant.menu.lang', ['tenant' => $tenant, 'lang' => 'en']) }}"
+               class="text-xs px-2 py-1 rounded {{ ($lang ?? 'es') === 'en' ? 'bg-white text-orange-600 font-bold' : 'text-orange-200 hover:text-white' }} transition">
+                EN
+            </a>
+        </div>
     </div>
 
     {{-- Barra del carrito --}}
     <div id="cart-bar" class="hidden fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 z-50 shadow-2xl">
         <div class="max-w-2xl mx-auto flex items-center justify-between">
-            <span id="cart-count" class="text-sm font-medium">0 item(s) seleccionados</span>
+            <span id="cart-count" class="text-sm font-medium">0 {{ $t['items_selected'] }}</span>
             <button onclick="showOrderForm()"
                     class="bg-orange-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-orange-700 transition text-sm">
-                Hacer pedido
+                {{ $t['add_to_order'] }}
             </button>
         </div>
     </div>
@@ -80,7 +91,7 @@
     {{-- Modal de confirmacion del pedido --}}
     <div id="order-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end">
         <div class="bg-white w-full max-w-2xl mx-auto rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto">
-            <h2 class="text-lg font-bold text-gray-900 mb-4">Confirmar pedido</h2>
+            <h2 class="text-lg font-bold text-gray-900 mb-4">{{ $t['confirm_order'] }}</h2>
 
             <form method="POST" action="{{ route('tenant.menu.order', ['tenant' => $tenant]) }}">
                 @csrf
@@ -92,27 +103,27 @@
                 <div id="order-inputs"></div>
 
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Tu nombre <span class="text-gray-400 font-normal">(opcional)</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t['your_name'] }} <span class="text-gray-400 font-normal">{{ $t['name_optional'] }}</span></label>
                     <input type="text" name="customer_name"
                            class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-400"
-                           placeholder="Para llamarte cuando este listo">
+                           placeholder="{{ $t['name_hint'] }}">
                 </div>
 
                 <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Notas <span class="text-gray-400 font-normal">(opcional)</span></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{{ $t['notes'] }} <span class="text-gray-400 font-normal">{{ $t['name_optional'] }}</span></label>
                     <textarea name="notes" rows="2"
                               class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-400"
-                              placeholder="Sin cebolla, extra salsa..."></textarea>
+                              placeholder="{{ $t['notes_hint'] }}"></textarea>
                 </div>
 
                 <div class="flex gap-3">
                     <button type="button" onclick="hideOrderForm()"
                             class="flex-1 border border-gray-200 text-gray-700 py-3 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
-                        Cancelar
+                        {{ $t['cancel'] }}
                     </button>
                     <button type="submit"
                             class="flex-1 bg-orange-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-orange-700 transition">
-                        Enviar pedido
+                        {{ $t['send_order'] }}
                     </button>
                 </div>
             </form>

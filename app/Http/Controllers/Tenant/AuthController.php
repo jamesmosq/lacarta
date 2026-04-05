@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -10,6 +11,10 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
+        $tenantModel = Tenant::find(tenant('id'));
+        if ($tenantModel && !$tenantModel->is_active) {
+            return view('public.closed', ['tenant' => tenant('id'), 'tenantModel' => $tenantModel, 'disabled' => true]);
+        }
         return view('tenant.auth.login', ['tenantSlug' => tenant('id')]);
     }
 
@@ -22,6 +27,7 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
+            $request->session()->put('login_time', now());
             $user = Auth::user();
             $t    = tenant('id');
 

@@ -15,7 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
-        $middleware->alias(['role' => \App\Http\Middleware\CheckRole::class]);
+        $middleware->alias([
+            'role'          => \App\Http\Middleware\CheckRole::class,
+            'superadmin'    => \App\Http\Middleware\CheckSuperAdmin::class,
+            'session.expiry'=> \App\Http\Middleware\CheckSessionExpiry::class,
+        ]);
         $middleware->redirectGuestsTo(function (\Illuminate\Http\Request $request) {
             if (tenancy()->initialized) {
                 return '/' . tenant('id') . '/admin/login';

@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Dish;
-use App\Models\Category;
+use App\Models\RestaurantTable;
+use App\Models\TenantUser;
 use App\Models\Tenant;
 use Carbon\Carbon;
 
@@ -51,8 +51,28 @@ class DashboardController extends Controller
 
         $tenantModel = Tenant::find($tenant);
 
+        // Mapa de mesas activas con mesero asignado y pedido activo
+        $tables_status = RestaurantTable::with(['assignedWaiter'])
+            ->where('active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(function ($table) {
+                $activeOrder = Order::where('table_id', $table->id)
+                    ->whereIn('status', ['pending', 'preparing', 'ready'])
+                    ->whereDate('created_at', today())
+                    ->first();
+                $table->active_order = $activeOrder;
+                return $table;
+            });
+
+        // Meseros en turno ahora
+        $on_duty = TenantUser::where('role', 'waiter')
+            ->where('available', true)
+            ->get();
+
         return view('tenant.dashboard', compact(
-            'stats', 'recent_orders', 'tenant', 'top_dishes', 'revenue_by_hour', 'tenantModel'
+            'stats', 'recent_orders', 'tenant', 'top_dishes', 'revenue_by_hour',
+            'tenantModel', 'tables_status', 'on_duty'
         ));
     }
 }

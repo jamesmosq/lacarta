@@ -17,7 +17,6 @@ class WaiterController extends Controller
         $tenant = tenant('id');
         $tables = RestaurantTable::where('active', true)->orderBy('name')->get();
 
-        // Para cada mesa activa, buscar si tiene pedidos activos hoy
         $activeOrders = Order::with('table')
             ->whereDate('created_at', today())
             ->whereIn('status', ['pending', 'preparing', 'ready'])
@@ -45,7 +44,7 @@ class WaiterController extends Controller
             'notes'            => 'nullable|string|max:500',
         ]);
 
-        $total = 0;
+        $total      = 0;
         $orderItems = [];
 
         foreach ($request->items as $item) {
@@ -74,8 +73,95 @@ class WaiterController extends Controller
             $order->items()->create($item);
         }
 
+        $table->update(['occupied' => true]);
+
         return redirect()
             ->route('tenant.waiter', ['tenant' => tenant('id')])
             ->with('success', "Pedido #{$order->id} registrado para {$table->name}.");
+    }
+
+    /** Editar un pedido pendiente. */
+    public function editOrder(Order $order)
+    {
+        if ($order->status !== Order::STATUS_PENDING) {
+            return redirect()->route('tenant.waiter', ['tenant' => tenant('id')])
+                ->with('error', 'Solo se pueden editar pedidos pendientes.');
+        }
+
+        $tenant     = tenant('id');
+        $categories = Category::with('activeDishes')->where('active', true)->orderBy('order')->get();
+        $order->load('items.dish');
+        return view('tenant.waiter.edit-order', compact('order', 'categories', 'tenant'));
+    }
+
+    /** Guardar edición de pedido pendiente. */
+    public function updateOrder(Request $request, Order $order)
+    {
+        if ($order->status !== Order::STATUS_PENDING) {
+            return redirect()->route('tenant.waiter', ['tenant' => tenant('id')])
+                ->with('error', 'Solo se pueden editar pedidos pendientes.');
+        }
+
+        $request->validate([
+            'items'            => 'required|array|min:1',
+            'items.*.dish_id'  => 'required|exists:dishes,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'notes'            => 'nullable|string|max:500',
+        ]);
+
+        $total      = 0;
+        $orderItems = [];
+
+        foreach ($request->items as $item) {
+            $dish     = Dish::findOrFail($item['dish_id']);
+            $total   += $dish->price * $item['quantity'];
+            $orderItems[] = [
+                'dish_id'    => $dish->id,
+                'quantity'   => $item['quantity'],
+                'unit_price' => $dish->price,
+                'notes'      => $item['notes'] ?? null,
+            ];
+        }
+
+        $order->items()->delete();
+        foreach ($orderItems as $item) {
+            $order->items()->create($item);
+        }
+        $order->update(['total' => $total, 'notes' => $request->notes]);
+
+        return redirect()
+            ->route('tenant.waiter', ['tenant' => tenant('id')])
+            ->with('success', "Pedido #{$order->id} actualizado.");
+    }
+
+    /** Historial de pedidos de una mesa en el día. */
+    public function tableHistory(RestaurantTable $table)
+    {
+        $tenant = tenant('id');
+        $orders = Order::with('items.dish', 'waiter')
+            ->where('table_id', $table->id)
+            ->whereDate('created_at', today())
+            ->orderBy('id')
+            ->get();
+
+        return view('tenant.waiter.history', compact('table', 'orders', 'tenant'));
+    }
+
+    /** JSON: mesas asignadas al mesero sin saludar (para polling de notificaciones). */
+    public function notifications()
+    {
+        $tables = RestaurantTable::where('assigned_waiter_id', Auth::id())
+            ->whereNull('greeted_at')
+            ->whereNotNull('assigned_at')
+            ->get(['id', 'name', 'assigned_at']);
+
+        return response()->json($tables);
+    }
+
+    /** Marca la mesa como saludada. */
+    public function greet(RestaurantTable $table)
+    {
+        $table->update(['greeted_at' => now()]);
+        return response()->json(['ok' => true]);
     }
 }

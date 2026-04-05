@@ -12,7 +12,7 @@ class TenantUser extends Authenticatable
 
     protected $table = 'users';
 
-    protected $fillable = ['name', 'email', 'password', 'role'];
+    protected $fillable = ['name', 'email', 'password', 'role', 'available'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -30,6 +30,16 @@ class TenantUser extends Authenticatable
     public function orders()
     {
         return $this->hasMany(Order::class, 'user_id');
+    }
+
+    public function shifts()
+    {
+        return $this->hasMany(Shift::class, 'user_id');
+    }
+
+    public function activeShift()
+    {
+        return $this->shifts()->whereNull('ended_at')->latest('started_at')->first();
     }
 
     public static function roleLabel(string $role): string
