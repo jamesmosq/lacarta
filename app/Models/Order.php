@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\TenantUser;
 
 class Order extends Model
 {
-    protected $fillable = ['table_id', 'status', 'customer_name', 'total', 'notes'];
+    protected $fillable = ['table_id', 'user_id', 'status', 'customer_name', 'total', 'notes'];
 
     const STATUS_PENDING   = 'pending';
     const STATUS_PREPARING = 'preparing';
@@ -16,6 +17,11 @@ class Order extends Model
     public function table()
     {
         return $this->belongsTo(RestaurantTable::class, 'table_id');
+    }
+
+    public function waiter()
+    {
+        return $this->belongsTo(TenantUser::class, 'user_id');
     }
 
     public function items()

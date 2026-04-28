@@ -195,6 +195,81 @@
 
 </div>
 
+{{-- Widget: estado de mesas en tiempo real --}}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+
+    {{-- Mapa de mesas --}}
+    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-700">Estado de mesas</h3>
+            <a href="{{ route('tenant.waiter', ['tenant' => $tenant]) }}"
+               class="text-xs text-orange-600 hover:underline">Ir al panel →</a>
+        </div>
+        @if($tables_status->isEmpty())
+            <p class="text-sm text-gray-400 text-center py-8">Sin mesas activas</p>
+        @else
+        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            @foreach($tables_status as $table)
+            <div class="rounded-xl border-2 p-3 text-center
+                @if($table->occupied && $table->active_order) border-yellow-300 bg-yellow-50
+                @elseif($table->occupied) border-orange-300 bg-orange-50
+                @else border-gray-100 bg-gray-50 @endif">
+                <p class="text-xs font-semibold text-gray-800 truncate">{{ $table->name }}</p>
+                @if($table->assignedWaiter)
+                    <p class="text-xs text-gray-500 mt-0.5 truncate">{{ explode(' ', $table->assignedWaiter->name)[0] }}</p>
+                @endif
+                @if($table->active_order)
+                    <span class="inline-block mt-1 text-xs px-1.5 py-0.5 rounded-full font-medium
+                        @if($table->active_order->status === 'pending') bg-yellow-200 text-yellow-800
+                        @elseif($table->active_order->status === 'preparing') bg-blue-100 text-blue-700
+                        @else bg-green-100 text-green-700 @endif">
+                        {{ $table->active_order->statusLabel() }}
+                    </span>
+                @elseif($table->occupied)
+                    <span class="inline-block mt-1 text-xs text-orange-600 font-medium">Por cobrar</span>
+                @else
+                    <span class="inline-block mt-1 text-xs text-gray-400">Libre</span>
+                @endif
+            </div>
+            @endforeach
+        </div>
+        @endif
+    </div>
+
+    {{-- Meseros en turno --}}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Equipo en turno</h3>
+        @if($on_duty->isEmpty())
+            <div class="flex items-center justify-center h-24 text-gray-300 text-sm text-center">
+                Ningún mesero<br>ha iniciado turno
+            </div>
+        @else
+        <div class="space-y-3">
+            @foreach($on_duty as $waiter)
+            @php
+                $assignedTables = $tables_status->where('assigned_waiter_id', $waiter->id)->count();
+            @endphp
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <span class="text-xs font-bold text-orange-600">{{ strtoupper(substr($waiter->name, 0, 1)) }}</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ $waiter->name }}</p>
+                    <p class="text-xs text-gray-400">{{ $assignedTables }} mesa(s) asignada(s)</p>
+                </div>
+                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+            </div>
+            @endforeach
+        </div>
+        @endif
+        <a href="{{ route('tenant.shifts.staff', ['tenant' => $tenant]) }}"
+           class="block text-center text-xs text-gray-400 hover:text-orange-600 mt-4 transition">
+            Ver turnos →
+        </a>
+    </div>
+
+</div>
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 @if($revenue_by_hour->isNotEmpty())

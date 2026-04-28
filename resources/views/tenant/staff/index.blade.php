@@ -3,9 +3,15 @@
 @section('title', 'Equipo')
 
 @section('content')
-<div class="mb-8">
-    <h2 class="text-2xl font-bold text-gray-900">Equipo</h2>
-    <p class="text-gray-500">Gestiona los accesos de meseros y cocina</p>
+<div class="mb-8 flex items-center justify-between flex-wrap gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900">Equipo</h2>
+        <p class="text-gray-500">Gestiona los accesos de meseros y cocina</p>
+    </div>
+    <a href="{{ route('tenant.shifts.staff', ['tenant' => tenant('id')]) }}"
+       class="text-sm text-orange-600 hover:underline font-medium">
+        Ver turnos y horas →
+    </a>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">

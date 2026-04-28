@@ -20,7 +20,7 @@ SaaS de menu digital para restaurantes. Cada restaurante es un tenant independie
 - **Local:** wamp64, DB `misaas`, usuario `postgres`, pass `base1234`
 - **Railway:** interno `postgres.railway.internal:5432`, publico `mainline.proxy.rlwy.net:42458`, DB `railway`
 - **Schema central:** `tenants`, `domains`, `sessions`, `cache`, `jobs`
-- **Schema por tenant:** `users`, `categories`, `dishes`, `tables`, `orders`, `order_items`, `ingredients`, `dish_ingredients`
+- **Schema por tenant:** `users`, `categories`, `dishes`, `tables`, `orders`, `order_items`, `ingredients`, `dish_ingredients`, `bills`
 
 ---
 
@@ -34,6 +34,7 @@ SaaS de menu digital para restaurantes. Cada restaurante es un tenant independie
 - `app/Models/RestaurantTable.php` — mesas (tabla `tables`), `active`, `qr_code`
 - `app/Models/Order.php` — pedidos, estados: `pending`, `preparing`, `ready`, `delivered`
 - `app/Models/Ingredient.php` — inventario, `stock`, `min_stock`, `syncDishesAvailability()`
+- `app/Models/Bill.php` — cobros por mesa, `table_id`, `waiter_id`, `payment_method`, `paid_at`
 
 ### Controladores centrales
 - `Central/HomeController.php`
@@ -50,6 +51,7 @@ SaaS de menu digital para restaurantes. Cada restaurante es un tenant independie
 - `ReportController` — reportes con filtros de periodo, export CSV
 - `InventoryController` — CRUD ingredientes, restock, vinculacion a platos
 - `SettingsController` — toggle is_open del restaurante
+- `CashController` — cobro de mesa: show (resumen del dia) + pay (registra bill, libera mesa)
 
 ### Controladores publicos
 - `Public/MenuPublicController.php` — menu publico, crear pedido, estado pedido, verifica is_open
@@ -191,20 +193,65 @@ Middleware `CheckRole` protege cada grupo de rutas. El sidebar del layout tenant
 - [x] Carrito con contador, resumen y total
 - [x] Vista de estado del pedido tras confirmar
 
+#### Prioridad alta — Implementado en sesión 2026-04-04
+
+- [x] Fix bug: `Order::$fillable` incluye `user_id`, relación `waiter()` en Order
+- [x] `tables.occupied` — mesa se ocupa al crear pedido, se libera al cobrar
+- [x] Sistema de cobro completo: `Bill` model, `CashController`, vista de caja, SweetAlert confirm
+- [x] `users.available` — mesero se marca disponible al iniciar turno
+- [x] `tables.assigned_waiter_id`, `assigned_at`, `greeted_at` — asignación desde QR
+- [x] Selección de mesero desde QR (`public/select-waiter.blade.php`) cuando no hay mesero asignado
+- [x] Mesero puede "Saludar" desde su panel (PATCH `/mesero/mesa/{table}/saludar`)
+- [x] Cliente ve banner "Tu mesero ya va" en order-status cuando `greeted_at` está set
+- [x] Polling AJAX en order-status (cada 8s, sin reload de página, JSON endpoint)
+- [x] Notificaciones en panel mesero: polling 8s → toast cuando mesa asignada sin saludar
+- [x] `Shift` model + `shifts` tabla — turnos con started_at, ended_at, expected_hours
+- [x] `ShiftController`: iniciar/terminar turno, calcular horas extra, export CSV
+- [x] Vista `tenant/shifts/profile.blade.php` — perfil + turno activo + últimos 10 turnos
+- [x] Vista `tenant/shifts/staff.blade.php` — owner ve todos los turnos con filtro de período
+- [x] Editar pedido pendiente: `WaiterController@editOrder/updateOrder` + vista `edit-order.blade.php`
+- [x] Historial de pedidos por mesa del día: `WaiterController@tableHistory` + vista `history.blade.php`
+- [x] `MenuBank` model + tabla central `menu_bank` — catálogo de platos prearmados
+- [x] `MenuBankController`: browse + importar a tenant con precio y categoría editables
+- [x] `SuperAdmin` model + tabla central `super_admins` — guard `superadmin` separado
+- [x] `SuperAdminAuthController` + `SuperAdminController` — login, dashboard, toggle `is_active`
+- [x] `tenants.is_active` — superadmin puede desactivar restaurantes
+- [x] Login centralizado en `/acceso` — owner ingresa correo → redirige a su tenant
+- [x] Tenant desactivado bloquea login y muestra vista de cerrado
+- [x] Sidebar actualizado: "Mi perfil", "Banco de menú" visibles según rol
+- [x] SuperAdmin inicial creado: `admin@lacarta.app` / `lacarta2026`
+
+#### Cobro de mesas
+- [x] Fix bug: `Order::$fillable` incluye `user_id` (antes se perdia el mesero en el pedido)
+- [x] `Order` tiene relacion `waiter()` a `TenantUser`
+- [x] Columna `tables.occupied` (bool) — true cuando hay pedido activo, false al cobrar
+- [x] Tabla `bills`: table_id, waiter_id, total, payment_method (efectivo/tarjeta/transferencia), notes, paid_at
+- [x] `CashController`: show (resumen del dia) + pay (registra cobro, libera mesa)
+- [x] Al crear pedido (mesero o QR) se marca `table.occupied = true` automaticamente
+- [x] Al cobrar: todos los pedidos del dia pasan a `delivered`, mesa pasa a `occupied = false`
+- [x] Panel mesero rediseñado: 3 estados visuales (disponible / pedido activo / por cobrar)
+- [x] Vista de cobro con desglose de pedidos, selector de metodo de pago y confirmacion SweetAlert
+- [x] Modelos: `Bill.php` con relaciones a `RestaurantTable` y `TenantUser`
+
 ---
 
 ### PENDIENTE — Por orden de prioridad
 
 #### Alta prioridad
-- [ ] **Notificaciones en tiempo real al cliente** — cuando el pedido pasa a "listo", el cliente recibe aviso en su pantalla sin recargar (WebSockets o polling en order-status.blade.php)
-- [ ] **Editar pedido antes de enviarlo a cocina** — un mesero pueda agregar/quitar items a un pedido pendiente
-- [ ] **Historial de pedidos por mesa** — en el panel mesero, ver los pedidos anteriores de una mesa en el mismo dia
+- [x] Seleccion de mesero desde QR
+- [x] Turnos y disponibilidad de meseros
+- [x] SuperAdmin + login centralizado
+- [x] Notificaciones en tiempo real al cliente (polling AJAX)
+- [x] Banco de menu
+- [x] Editar pedido antes de enviarlo a cocina
+- [x] Historial de pedidos por mesa
 
 #### Media prioridad
-- [ ] **Whitelabel / dominio propio** — el restaurante usa `menu.mirestaurante.com` en vez de lacarta.app
-- [ ] **Multiples idiomas en menu publico** — espanol/ingles toggle en la vista del cliente
-- [ ] **App PWA instalable** — manifest.json + service worker para instalar el panel como app en movil
-- [ ] **Cierre de sesion automatico** — meseros y cocina con sesion de X horas
+- [x] **Dashboard con asignacion de mesas** — widget con grid de mesas (libre/ocupada/por cobrar) + meseros en turno
+- [x] **App PWA instalable** — manifest.json + sw.js, meta tags en layouts de admin y menu publico
+- [x] **Cierre de sesion automatico** — middleware `CheckSessionExpiry`, meseros/cocina expiran a las 10h, owner nunca expira
+- [x] **Multiples idiomas en menu publico** — toggle ES/EN en header del menu, traducciones en `resources/lang/menu_es.php` y `menu_en.php`
+- [ ] **Whitelabel / dominio propio** — requiere config DNS, pendiente
 
 #### Baja prioridad (Tier 3)
 - [ ] **Pagos integrados (Wompi/PSE)** — el cliente paga desde la mesa antes de enviar el pedido

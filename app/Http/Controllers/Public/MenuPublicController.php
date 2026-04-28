@@ -9,14 +9,29 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
 use App\Models\Tenant;
+use App\Models\TenantUser;
 use Illuminate\Http\Request;
 
 class MenuPublicController extends Controller
 {
+    private function getLang(Request $request): array
+    {
+        $lang = $request->cookie('menu_lang', 'es');
+        $file = in_array($lang, ['es', 'en']) ? $lang : 'es';
+        return require resource_path("lang/menu_{$file}.php");
+    }
+
+    public function setLang(Request $request, string $lang)
+    {
+        $lang = in_array($lang, ['es', 'en']) ? $lang : 'es';
+        return back()->withCookie(cookie()->forever('menu_lang', $lang));
+    }
+
     public function index(Request $request)
     {
         $tenant      = tenant('id');
         $tenantModel = Tenant::find($tenant);
+        $t           = $this->getLang($request);
 
         if (!$tenantModel->is_open) {
             return view('public.closed', compact('tenant', 'tenantModel'));
@@ -31,7 +46,39 @@ class MenuPublicController extends Controller
             ? RestaurantTable::where('id', $request->mesa)->where('active', true)->first()
             : null;
 
-        return view('public.menu', compact('categories', 'tenant', 'table'));
+        // Si hay mesa y no tiene mesero asignado, mostrar selección de mesero
+        if ($table && !$table->assigned_waiter_id && !$request->boolean('skip_waiter')) {
+            $waiters = TenantUser::where('role', 'waiter')
+                ->where('available', true)
+                ->orderBy('name')
+                ->get();
+
+            if ($waiters->isNotEmpty()) {
+                return view('public.select-waiter', compact('table', 'waiters', 'tenant', 'tenantModel', 't'));
+            }
+        }
+
+        $lang = $request->cookie('menu_lang', 'es');
+        return view('public.menu', compact('categories', 'tenant', 'table', 't', 'lang'));
+    }
+
+    /** Asigna el mesero elegido a la mesa y redirige al menú. */
+    public function selectWaiter(Request $request, RestaurantTable $table)
+    {
+        $request->validate([
+            'waiter_id' => 'required|exists:users,id',
+        ]);
+
+        $table->update([
+            'assigned_waiter_id' => $request->waiter_id,
+            'assigned_at'        => now(),
+            'greeted_at'         => null,
+        ]);
+
+        return redirect()->route('tenant.menu.public', [
+            'tenant' => tenant('id'),
+            'mesa'   => $table->id,
+        ]);
     }
 
     public function order(Request $request)
@@ -47,13 +94,13 @@ class MenuPublicController extends Controller
             'notes'               => 'nullable|string|max:500',
         ]);
 
-        $total = 0;
+        $total      = 0;
         $orderItems = [];
 
         foreach ($request->items as $item) {
-            $dish = Dish::findOrFail($item['dish_id']);
-            $subtotal = $dish->price * $item['quantity'];
-            $total += $subtotal;
+            $dish      = Dish::findOrFail($item['dish_id']);
+            $subtotal  = $dish->price * $item['quantity'];
+            $total    += $subtotal;
 
             $orderItems[] = [
                 'dish_id'    => $dish->id,
@@ -75,11 +122,26 @@ class MenuPublicController extends Controller
             $order->items()->create($item);
         }
 
+        if ($request->table_id) {
+            RestaurantTable::where('id', $request->table_id)->update(['occupied' => true]);
+        }
+
         $this->deductInventory($order);
 
         return redirect()->route('tenant.order.status', [
             'tenant' => $tenant,
             'order'  => $order->id,
+        ]);
+    }
+
+    /** JSON: estado del pedido para polling en la vista pública. */
+    public function statusJson(Order $order)
+    {
+        $order->load('table');
+        return response()->json([
+            'status'  => $order->status,
+            'label'   => $order->statusLabel(),
+            'greeted' => $order->table?->greeted_at !== null,
         ]);
     }
 
@@ -98,14 +160,14 @@ class MenuPublicController extends Controller
             }
         }
 
-        // Recalcular disponibilidad de platos afectados (sin duplicados)
         $affectedIngredients->unique('id')->each->syncDishesAvailability();
     }
 
-    public function status(Order $order)
+    public function status(Request $request, Order $order)
     {
         $tenant = tenant('id');
-        $order->load('items.dish');
-        return view('public.order-status', compact('order', 'tenant'));
+        $order->load('items.dish', 'table');
+        $t = $this->getLang($request);
+        return view('public.order-status', compact('order', 'tenant', 't'));
     }
 }
