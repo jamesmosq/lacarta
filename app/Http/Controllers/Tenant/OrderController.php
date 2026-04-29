@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Tenant;
 
+use App\Events\OrderStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use Illuminate\Http\Request;
@@ -68,6 +69,15 @@ class OrderController extends Controller
     {
         $request->validate(['status' => 'required|in:pending,preparing,ready,delivered']);
         $order->update(['status' => $request->status]);
+
+        $order->load('table');
+        OrderStatusUpdated::dispatch(
+            $order->id,
+            $request->status,
+            $order->table?->greeted_at !== null,
+            tenant('id'),
+        );
+
         return response()->json(['ok' => true]);
     }
 }

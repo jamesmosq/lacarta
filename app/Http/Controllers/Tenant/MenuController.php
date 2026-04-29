@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Dish;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class MenuController extends Controller
@@ -30,6 +31,7 @@ class MenuController extends Controller
         ]);
 
         Category::create($request->only('name', 'order'));
+        Cache::forget('menu-categories');
 
         return redirect()->route('tenant.menu', ['tenant' => tenant('id')])
             ->with('success', 'Categoría creada.');
@@ -59,6 +61,7 @@ class MenuController extends Controller
         }
 
         Dish::create($data);
+        Cache::forget('menu-categories');
 
         return redirect()->route('tenant.menu', ['tenant' => tenant('id')])
             ->with('success', 'Plato agregado al menú.');
@@ -77,6 +80,7 @@ class MenuController extends Controller
         ]);
 
         $category->update($request->only('name', 'order'));
+        Cache::forget('menu-categories');
 
         return redirect()->route('tenant.menu', ['tenant' => tenant('id')])
             ->with('success', 'Categoría actualizada.');
@@ -85,6 +89,7 @@ class MenuController extends Controller
     public function destroyCategory(Category $category)
     {
         $category->delete();
+        Cache::forget('menu-categories');
         return back()->with('success', 'Categoría eliminada.');
     }
 
@@ -117,6 +122,7 @@ class MenuController extends Controller
         }
 
         $dish->update($data);
+        Cache::forget('menu-categories');
 
         return redirect()->route('tenant.menu', ['tenant' => tenant('id')])
             ->with('success', 'Plato actualizado.');
@@ -125,6 +131,7 @@ class MenuController extends Controller
     public function toggleAvailable(Request $request, Dish $dish)
     {
         $dish->update(['available' => !$dish->available]);
+        Cache::forget('menu-categories');
         return back()->with('success', 'Disponibilidad actualizada.');
     }
 
@@ -132,6 +139,7 @@ class MenuController extends Controller
     {
         if ($dish->image) Storage::disk('public')->delete($dish->image);
         $dish->delete();
+        Cache::forget('menu-categories');
         return back()->with('success', 'Plato eliminado.');
     }
 }

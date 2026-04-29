@@ -71,6 +71,58 @@
     </div>
     @endif
 
+    {{-- Cambiar contraseña --}}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <button type="button" onclick="togglePasswordForm()"
+                class="w-full flex items-center justify-between text-left">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                    </svg>
+                </div>
+                <span class="font-semibold text-gray-900">Cambiar contraseña</span>
+            </div>
+            <svg id="pwd-chevron" class="w-4 h-4 text-gray-400 transition-transform duration-200"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+
+        <div id="password-form" class="hidden mt-5 pt-5 border-t border-gray-100">
+            @if($errors->has('current_password'))
+            <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 mb-4 text-sm">
+                {{ $errors->first('current_password') }}
+            </div>
+            @endif
+
+            <form method="POST" action="{{ route('tenant.profile.password', ['tenant' => tenant('id')]) }}"
+                  class="space-y-4 max-w-sm">
+                @csrf @method('PATCH')
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña actual</label>
+                    <input type="password" name="current_password" required autocomplete="current-password"
+                           class="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-orange-400 outline-none text-sm
+                                  @error('current_password') border-red-400 @enderror">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña</label>
+                    <input type="password" name="password" required minlength="6" autocomplete="new-password"
+                           class="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-orange-400 outline-none text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar nueva contraseña</label>
+                    <input type="password" name="password_confirmation" required minlength="6" autocomplete="new-password"
+                           class="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-orange-400 outline-none text-sm">
+                </div>
+                <button type="submit"
+                        class="bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-700 transition">
+                    Actualizar contraseña
+                </button>
+            </form>
+        </div>
+    </div>
+
     {{-- Turnos recientes --}}
     @if($recentShifts->isNotEmpty())
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -106,4 +158,20 @@
     </div>
     @endif
 </div>
+
+@push('scripts')
+<script>
+function togglePasswordForm() {
+    const form    = document.getElementById('password-form');
+    const chevron = document.getElementById('pwd-chevron');
+    const hidden  = form.classList.contains('hidden');
+    form.classList.toggle('hidden', !hidden);
+    chevron.style.transform = hidden ? 'rotate(180deg)' : '';
+}
+
+@if($errors->has('current_password'))
+document.addEventListener('DOMContentLoaded', () => togglePasswordForm());
+@endif
+</script>
+@endpush
 @endsection

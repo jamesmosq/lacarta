@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estado del pedido — {{ tenant('name') }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.pusher.com/8.4.0/pusher.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center px-4">
 
@@ -128,19 +129,20 @@ function updateUI(data) {
     isDone = data.status === 'delivered';
 }
 
-async function poll() {
-    if (isDone) {
-        document.getElementById('update-hint').textContent = '';
-        return;
-    }
-    try {
-        const res  = await fetch(jsonUrl);
-        const data = await res.json();
-        updateUI(data);
-    } catch {}
-}
+const pusher = new Pusher('{{ env("REVERB_APP_KEY") }}', {
+    wsHost:            '{{ env("REVERB_HOST", "localhost") }}',
+    wsPort:            {{ env("REVERB_PORT", 8080) }},
+    wssPort:           {{ env("REVERB_PORT", 8080) }},
+    forceTLS:          {{ env("REVERB_SCHEME", "http") === "https" ? "true" : "false" }},
+    enabledTransports: ['ws', 'wss'],
+    disableStats:      true,
+    cluster:           'mt1',
+});
 
-setInterval(poll, 8000);
+const orderCh = pusher.subscribe('order.{{ $order->id }}');
+orderCh.bind('order.updated', (data) => {
+    if (!isDone) updateUI(data);
+});
 </script>
 </body>
 </html>

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Public;
 
+use App\Events\NewOrderCreated;
+use App\Events\TableAssignedToWaiter;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Dish;
@@ -11,6 +13,7 @@ use App\Models\RestaurantTable;
 use App\Models\Tenant;
 use App\Models\TenantUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class MenuPublicController extends Controller
 {
@@ -37,10 +40,12 @@ class MenuPublicController extends Controller
             return view('public.closed', compact('tenant', 'tenantModel'));
         }
 
-        $categories = Category::with('activeDishes')
-            ->where('active', true)
-            ->orderBy('order')
-            ->get();
+        $categories = Cache::remember('menu-categories', 60, fn () =>
+            Category::with('activeDishes')
+                ->where('active', true)
+                ->orderBy('order')
+                ->get()
+        );
 
         $table = $request->filled('mesa')
             ? RestaurantTable::where('id', $request->mesa)->where('active', true)->first()
@@ -74,6 +79,13 @@ class MenuPublicController extends Controller
             'assigned_at'        => now(),
             'greeted_at'         => null,
         ]);
+
+        TableAssignedToWaiter::dispatch(
+            $table->id,
+            $table->name,
+            (int) $request->waiter_id,
+            tenant('id'),
+        );
 
         return redirect()->route('tenant.menu.public', [
             'tenant' => tenant('id'),
@@ -128,6 +140,8 @@ class MenuPublicController extends Controller
 
         $this->deductInventory($order);
 
+        NewOrderCreated::dispatch($order->id, tenant('id'));
+
         return redirect()->route('tenant.order.status', [
             'tenant' => $tenant,
             'order'  => $order->id,
@@ -147,16 +161,18 @@ class MenuPublicController extends Controller
 
     private function deductInventory(Order $order): void
     {
-        $items = $order->items()->with('dish.ingredients')->get();
-
+        $items               = $order->items()->with('dish.ingredients')->get();
         $affectedIngredients = collect();
 
         foreach ($items as $item) {
             foreach ($item->dish->ingredients as $ingredient) {
-                $consumed = $item->quantity * $ingredient->pivot->quantity;
-                $newStock  = max(0, $ingredient->stock - $consumed);
-                $ingredient->update(['stock' => $newStock]);
-                $affectedIngredients->push($ingredient->refresh());
+                Cache::store('redis')->lock('inv.' . tenant('id') . '.' . $ingredient->id, 5)
+                    ->block(3, function () use ($ingredient, $item, &$affectedIngredients) {
+                        $ingredient->refresh();
+                        $consumed = $item->quantity * $ingredient->pivot->quantity;
+                        $ingredient->update(['stock' => max(0, $ingredient->stock - $consumed)]);
+                        $affectedIngredients->push($ingredient->refresh());
+                    });
             }
         }
 

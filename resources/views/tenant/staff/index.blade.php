@@ -8,10 +8,19 @@
         <h2 class="text-2xl font-bold text-gray-900">Equipo</h2>
         <p class="text-gray-500">Gestiona los accesos de meseros y cocina</p>
     </div>
-    <a href="{{ route('tenant.shifts.staff', ['tenant' => tenant('id')]) }}"
-       class="text-sm text-orange-600 hover:underline font-medium">
-        Ver turnos y horas →
-    </a>
+    <div class="flex items-center gap-3">
+        <a href="{{ route('tenant.staff.stats', ['tenant' => tenant('id')]) }}"
+           class="inline-flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-700 font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Estadisticas →
+        </a>
+        <a href="{{ route('tenant.shifts.staff', ['tenant' => tenant('id')]) }}"
+           class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+            Ver turnos →
+        </a>
+    </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -81,26 +90,47 @@
         @else
         <div class="divide-y">
             @foreach($staff as $member)
-            <div class="px-6 py-4 flex items-center justify-between">
-                <div class="flex items-center gap-4">
+            {{-- Formulario oculto para resetear contraseña --}}
+            <form id="reset-pwd-form-{{ $member->id }}" method="POST"
+                  action="{{ route('tenant.staff.reset_password', ['tenant' => $tenant, 'staff' => $member->id]) }}"
+                  class="hidden">
+                @csrf @method('PATCH')
+                <input type="hidden" name="password" id="reset-pwd-input-{{ $member->id }}">
+            </form>
+
+            <div class="px-6 py-4 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-4 min-w-0">
                     <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
                         <span class="text-orange-600 font-semibold text-sm">{{ strtoupper(substr($member->name, 0, 2)) }}</span>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                         <p class="font-medium text-gray-900 text-sm">{{ $member->name }}</p>
-                        <p class="text-gray-400 text-xs mt-0.5">{{ $member->email }}</p>
+                        <p class="text-gray-400 text-xs mt-0.5 truncate">{{ $member->email }}</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 flex-shrink-0">
                     <span class="text-xs font-medium px-2.5 py-1 rounded-full
                         {{ $member->role === 'waiter' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700' }}">
                         {{ \App\Models\TenantUser::roleLabel($member->role) }}
                     </span>
+
+                    {{-- Resetear contraseña --}}
+                    <button type="button"
+                            onclick="resetearPassword({{ $member->id }}, '{{ addslashes($member->name) }}')"
+                            class="p-1.5 text-gray-400 hover:text-indigo-600 transition"
+                            title="Resetear contraseña">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                        </svg>
+                    </button>
+
+                    {{-- Eliminar --}}
                     <form method="POST" action="{{ route('tenant.staff.destroy', ['tenant' => $tenant, 'staff' => $member->id]) }}">
                         @csrf @method('DELETE')
                         <button type="button"
-                                onclick="confirmarEliminar(this.closest('form'), '{{ $member->name }}')"
-                                class="text-red-400 hover:text-red-600 transition">
+                                onclick="confirmarEliminar(this.closest('form'), '{{ addslashes($member->name) }}')"
+                                class="p-1.5 text-gray-400 hover:text-red-600 transition"
+                                title="Eliminar usuario">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                             </svg>
@@ -135,6 +165,28 @@ function confirmarEliminar(form, nombre) {
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar',
     }).then(r => { if (r.isConfirmed) form.submit(); });
+}
+
+function resetearPassword(id, nombre) {
+    Swal.fire({
+        title: 'Nueva contraseña para ' + nombre,
+        input: 'password',
+        inputLabel: 'Mínimo 6 caracteres',
+        inputPlaceholder: 'Nueva contraseña',
+        showCancelButton: true,
+        confirmButtonColor: '#4f46e5',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Actualizar',
+        cancelButtonText: 'Cancelar',
+        inputValidator: (value) => {
+            if (!value || value.length < 6) return 'La contraseña debe tener al menos 6 caracteres.';
+        }
+    }).then(result => {
+        if (result.isConfirmed) {
+            document.getElementById('reset-pwd-input-' + id).value = result.value;
+            document.getElementById('reset-pwd-form-' + id).submit();
+        }
+    });
 }
 </script>
 @endpush

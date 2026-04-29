@@ -25,7 +25,13 @@ Route::prefix('/superadmin')->name('superadmin.')->group(function () {
     Route::post('/logout',[SuperAdminAuthController::class, 'logout'])->name('logout');
 
     Route::middleware(['superadmin'])->group(function () {
-        Route::get('/dashboard',                        [SuperAdminController::class, 'dashboard'])->name('dashboard');
-        Route::patch('/tenant/{tenant}/toggle-active',  [SuperAdminController::class, 'toggleActive'])->name('tenant.toggle');
+        Route::get('/dashboard',                          [SuperAdminController::class, 'dashboard'])->name('dashboard');
+        Route::patch('/tenant/{tenant}/toggle-active',    [SuperAdminController::class, 'toggleActive'])->name('tenant.toggle');
+        Route::get('/tenant/{tenant}',                    [SuperAdminController::class, 'tenantDetail'])->name('tenant.detail');
+        Route::patch('/tenant/{tenant}/plan',             [SuperAdminController::class, 'updatePlan'])->name('tenant.plan');
+        Route::post('/tenant/{tenant}/impersonate',       [SuperAdminController::class, 'impersonate'])->name('tenant.impersonate');
+        Route::post('/impersonate/exit',                  [SuperAdminController::class, 'stopImpersonating'])->name('impersonate.exit');
+        Route::post('/tenant/{tenant}/notify',            [SuperAdminController::class, 'sendNotification'])->name('tenant.notify');
+        Route::post('/tenant/{tenant}/reset-password',   [SuperAdminController::class, 'resetOwnerPassword'])->name('tenant.reset_password');
     });
 });

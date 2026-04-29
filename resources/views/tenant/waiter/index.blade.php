@@ -161,25 +161,7 @@
 
 @push('scripts')
 <script>
-const notifUrl  = '{{ route('tenant.waiter.notifications', ['tenant' => $tenant]) }}';
 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-let knownIds    = new Set();
-
-async function pollNotifications() {
-    try {
-        const res   = await fetch(notifUrl);
-        const tables = await res.json();
-        tables.forEach(t => {
-            if (!knownIds.has(t.id)) {
-                knownIds.add(t.id);
-                document.getElementById('notification-text').textContent =
-                    `¡${t.name} te ha seleccionado!`;
-                document.getElementById('notification-banner').classList.remove('hidden');
-            }
-        });
-        if (tables.length === 0) knownIds.clear();
-    } catch {}
-}
 
 async function saludar(tableId, tableName) {
     await fetch(`{{ url('') }}/{{ $tenant }}/admin/mesero/mesa/${tableId}/saludar`, {
@@ -189,8 +171,23 @@ async function saludar(tableId, tableName) {
     location.reload();
 }
 
-pollNotifications();
-setInterval(pollNotifications, 8000);
+const pusher = new Pusher('{{ env("REVERB_APP_KEY") }}', {
+    wsHost:            '{{ env("REVERB_HOST", "localhost") }}',
+    wsPort:            {{ env("REVERB_PORT", 8080) }},
+    wssPort:           {{ env("REVERB_PORT", 8080) }},
+    forceTLS:          {{ env("REVERB_SCHEME", "http") === "https" ? "true" : "false" }},
+    enabledTransports: ['ws', 'wss'],
+    disableStats:      true,
+    cluster:           'mt1',
+    authEndpoint:      '/{{ $tenant }}/broadcasting/auth',
+    auth:              { headers: { 'X-CSRF-TOKEN': csrfToken } },
+});
+
+const waiterCh = pusher.subscribe('private-waiter.{{ $tenant }}.{{ auth()->id() }}');
+waiterCh.bind('table.assigned', (data) => {
+    document.getElementById('notification-text').textContent = `¡${data.table_name} te ha seleccionado!`;
+    document.getElementById('notification-banner').classList.remove('hidden');
+});
 </script>
 @endpush
 @endsection

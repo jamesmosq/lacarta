@@ -7,6 +7,7 @@ use App\Models\Shift;
 use App\Models\TenantUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class ShiftController extends Controller
 {
@@ -79,6 +80,26 @@ class ShiftController extends Controller
             ->get();
 
         return view('tenant.shifts.staff', compact('staff', 'from', 'to'));
+    }
+
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password'  => 'required',
+            'password'          => 'required|string|min:6|confirmed',
+        ], [
+            'password.confirmed' => 'Las contraseñas nuevas no coinciden.',
+        ]);
+
+        $user = Auth::user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return back()->withErrors(['current_password' => 'La contraseña actual no es correcta.'])->withInput();
+        }
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        return back()->with('success', 'Contraseña actualizada correctamente.');
     }
 
     /** Export CSV de turnos del equipo. */

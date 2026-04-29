@@ -29,12 +29,25 @@ Route::middleware(['web', InitializeTenancyByPath::class])
         Route::get('/menu/pedido/{order}/json',                  [MenuPublicController::class, 'statusJson'])->name('tenant.order.status.json');
         Route::post('/menu/mesa/{table}/mesero',                 [MenuPublicController::class, 'selectWaiter'])->name('tenant.menu.select_waiter');
         Route::get('/menu/idioma/{lang}',                        [MenuPublicController::class, 'setLang'])->name('tenant.menu.lang');
+
+        // Broadcasting channel auth (para canales privados del panel)
+        Route::middleware(['auth'])
+            ->post('/broadcasting/auth', [\Illuminate\Broadcasting\BroadcastController::class, 'authenticate'])
+            ->name('tenant.broadcasting.auth');
     });
 
 // ─── Panel de administración ───────────────────────────────────────────────────
 Route::middleware(['web', InitializeTenancyByPath::class])
     ->prefix('/{tenant}/admin')
     ->group(function () {
+
+        // Dismiss notificacion de superadmin (no requiere auth)
+        Route::post('/notification/{id}/dismiss', function ($tenant, $id) {
+            \App\Models\TenantNotification::where('id', $id)
+                ->where('tenant_id', tenant('id'))
+                ->update(['read_at' => now()]);
+            return back();
+        })->name('tenant.notification.dismiss');
 
         // Auth (sin protección)
         Route::get('/login',  [AuthController::class, 'showLogin'])->name('tenant.login');
@@ -48,6 +61,7 @@ Route::middleware(['web', InitializeTenancyByPath::class])
             Route::get('/perfil',              [ShiftController::class, 'profile'])->name('tenant.profile');
             Route::post('/perfil/turno/start', [ShiftController::class, 'start'])->name('tenant.shift.start');
             Route::patch('/perfil/turno/{shift}/end', [ShiftController::class, 'end'])->name('tenant.shift.end');
+            Route::patch('/perfil/password',   [ShiftController::class, 'changePassword'])->name('tenant.profile.password');
 
             // Mesero y dueño: panel de tomar pedidos y cobrar
             Route::middleware(['role:owner,waiter'])->group(function () {
@@ -78,11 +92,13 @@ Route::middleware(['web', InitializeTenancyByPath::class])
                 Route::patch('/settings/toggle-open',       [SettingsController::class, 'toggleOpen'])->name('tenant.settings.toggle_open');
 
                 // Equipo
-                Route::get('/equipo',                       [StaffController::class, 'index'])->name('tenant.staff');
-                Route::post('/equipo',                      [StaffController::class, 'store'])->name('tenant.staff.store');
-                Route::delete('/equipo/{staff}',            [StaffController::class, 'destroy'])->name('tenant.staff.destroy');
-                Route::get('/equipo/turnos',                [ShiftController::class, 'staffShifts'])->name('tenant.shifts.staff');
-                Route::get('/equipo/turnos/exportar',       [ShiftController::class, 'export'])->name('tenant.shifts.export');
+                Route::get('/equipo',                           [StaffController::class, 'index'])->name('tenant.staff');
+                Route::post('/equipo',                          [StaffController::class, 'store'])->name('tenant.staff.store');
+                Route::delete('/equipo/{staff}',                [StaffController::class, 'destroy'])->name('tenant.staff.destroy');
+                Route::patch('/equipo/{staff}/password',        [StaffController::class, 'resetPassword'])->name('tenant.staff.reset_password');
+                Route::get('/equipo/estadisticas',              [StaffController::class, 'stats'])->name('tenant.staff.stats');
+                Route::get('/equipo/turnos',                    [ShiftController::class, 'staffShifts'])->name('tenant.shifts.staff');
+                Route::get('/equipo/turnos/exportar',           [ShiftController::class, 'export'])->name('tenant.shifts.export');
 
                 // Menú
                 Route::get('/menu',                         [MenuController::class, 'index'])->name('tenant.menu');

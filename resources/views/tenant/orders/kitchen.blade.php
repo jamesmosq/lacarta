@@ -125,7 +125,31 @@ async function advanceOrder(id, newStatus, btn) {
 }
 
 loadOrders();
-setInterval(loadOrders, 8000);
+
+const pusher = new Pusher('{{ env("REVERB_APP_KEY") }}', {
+    wsHost:            '{{ env("REVERB_HOST", "localhost") }}',
+    wsPort:            {{ env("REVERB_PORT", 8080) }},
+    wssPort:           {{ env("REVERB_PORT", 8080) }},
+    forceTLS:          {{ env("REVERB_SCHEME", "http") === "https" ? "true" : "false" }},
+    enabledTransports: ['ws', 'wss'],
+    disableStats:      true,
+    cluster:           'mt1',
+    authEndpoint:      '/{{ $tenant }}/broadcasting/auth',
+    auth:              { headers: { 'X-CSRF-TOKEN': csrf } },
+});
+
+const kitchenCh = pusher.subscribe('private-kitchen.{{ $tenant }}');
+kitchenCh.bind('order.created', loadOrders);
+kitchenCh.bind('order.updated', loadOrders);
+
+pusher.connection.bind('connected', () => {
+    document.getElementById('polling-indicator').classList.remove('bg-red-400');
+    document.getElementById('polling-indicator').classList.add('bg-green-400');
+});
+pusher.connection.bind('disconnected', () => {
+    document.getElementById('polling-indicator').classList.remove('bg-green-400');
+    document.getElementById('polling-indicator').classList.add('bg-red-400');
+});
 </script>
 @endpush
 @endsection

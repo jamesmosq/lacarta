@@ -6,6 +6,7 @@
     <title>@yield('title', tenant('name')) — Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://js.pusher.com/8.4.0/pusher.min.js"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#ea580c">
@@ -16,7 +17,57 @@
 </head>
 <body class="bg-gray-100">
 
-@php $t = tenant('id'); $user = auth()->user(); @endphp
+@php
+    $t = tenant('id');
+    $user = auth()->user();
+    $impersonating = session('impersonating_as_superadmin', false);
+    $tenantNotification = \App\Models\TenantNotification::where('tenant_id', $t)
+        ->whereNull('read_at')
+        ->latest()
+        ->first();
+@endphp
+
+{{-- ── Banner impersonacion superadmin ───────────────────────────── --}}
+@if($impersonating)
+<div class="bg-indigo-700 text-white text-sm py-2.5 px-4 flex items-center justify-center gap-4">
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+    </svg>
+    <span>Modo soporte — Ves el panel de <strong>{{ session('impersonating_tenant_name') }}</strong> como owner</span>
+    <form method="POST" action="{{ route('superadmin.impersonate.exit') }}">
+        @csrf
+        <button type="submit"
+                class="bg-white text-indigo-700 font-bold text-xs px-3 py-1 rounded-full hover:bg-indigo-50 transition">
+            Salir
+        </button>
+    </form>
+</div>
+@endif
+
+{{-- ── Notificacion de SuperAdmin ─────────────────────────────────── --}}
+@if($tenantNotification)
+<div class="bg-blue-600 text-white px-5 py-3 flex items-start justify-between gap-4">
+    <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+            <p class="text-xs font-semibold text-blue-200 mb-0.5">Mensaje de LaCarta</p>
+            <p class="text-sm">{{ $tenantNotification->message }}</p>
+        </div>
+    </div>
+    <form method="POST"
+          action="{{ route('tenant.notification.dismiss', ['tenant' => $t, 'id' => $tenantNotification->id]) }}"
+          class="flex-shrink-0">
+        @csrf
+        <button type="submit" class="text-blue-200 hover:text-white transition p-1">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </form>
+</div>
+@endif
 
 {{-- ── Barra superior móvil (solo < md) ──────────────────────────── --}}
 <header class="md:hidden fixed top-0 left-0 right-0 z-40 bg-orange-600 text-white h-14 flex items-center px-4 gap-3 shadow-md">

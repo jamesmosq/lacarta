@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Tenant;
 
+use App\Events\NewOrderCreated;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Dish;
@@ -74,6 +75,8 @@ class WaiterController extends Controller
         }
 
         $table->update(['occupied' => true]);
+
+        NewOrderCreated::dispatch($order->id, tenant('id'));
 
         return redirect()
             ->route('tenant.waiter', ['tenant' => tenant('id')])
