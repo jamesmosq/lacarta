@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Broadcast;
 
+// Canal tenant general: notificaciones del SuperAdmin a cualquier usuario autenticado del tenant
+Broadcast::channel('tenant.{tenantSlug}', function ($user, string $tenantSlug) {
+    return tenancy()->initialized && tenant('id') === $tenantSlug;
+});
+
 // Canal de cocina: dueño y cocina ven todos los pedidos en vivo
 Broadcast::channel('kitchen.{tenantSlug}', function ($user, string $tenantSlug) {
     return tenancy()->initialized

@@ -46,7 +46,7 @@
 
 {{-- ── Notificacion de SuperAdmin ─────────────────────────────────── --}}
 @if($tenantNotification)
-<div class="bg-blue-600 text-white px-5 py-3 flex items-start justify-between gap-4">
+<div id="superadmin-notification-banner" class="bg-blue-600 text-white px-5 py-3 flex items-start justify-between gap-4">
     <div class="flex items-start gap-3">
         <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -309,6 +309,50 @@ sidebar.addEventListener('touchend', e => {
     if (touchStartX - e.changedTouches[0].clientX > 60) closeSidebar();
 }, { passive: true });
 </script>
+
+@auth
+<script>
+(function () {
+    const csrf    = document.querySelector('meta[name=csrf-token]').content;
+    const tenant  = @json(tenant('id'));
+
+    const pusher = new Pusher('{{ env("REVERB_APP_KEY") }}', {
+        wsHost:            '{{ env("REVERB_HOST", "localhost") }}',
+        wsPort:            {{ env("REVERB_PORT", 8080) }},
+        wssPort:           {{ env("REVERB_PORT", 8080) }},
+        forceTLS:          {{ env("REVERB_SCHEME", "http") === "https" ? "true" : "false" }},
+        enabledTransports: ['ws', 'wss'],
+        disableStats:      true,
+        cluster:           'mt1',
+        authEndpoint:      '/' + tenant + '/broadcasting/auth',
+        auth:              { headers: { 'X-CSRF-TOKEN': csrf } },
+    });
+
+    const tenantCh = pusher.subscribe('private-tenant.' + tenant);
+
+    tenantCh.bind('message.sent', function (data) {
+        Swal.fire({
+            icon:               'info',
+            title:              'Mensaje de LaCarta',
+            text:               data.message,
+            confirmButtonText:  'Entendido',
+            confirmButtonColor: '#2563eb',
+            allowOutsideClick:  false,
+        }).then(function () {
+            // Marcar como leida al confirmar
+            fetch('/' + tenant + '/admin/notification/' + data.id + '/dismiss', {
+                method:  'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json' },
+            }).then(function () {
+                // Ocultar el banner estatico si estaba visible
+                const banner = document.getElementById('superadmin-notification-banner');
+                if (banner) banner.remove();
+            });
+        });
+    });
+})();
+</script>
+@endauth
 
 </body>
 </html>

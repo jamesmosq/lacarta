@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Central;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
+use App\Events\SuperAdminMessageSent;
 use App\Models\TenantNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -193,11 +194,17 @@ class SuperAdminController extends Controller
             'message' => 'required|string|max:500',
         ]);
 
-        TenantNotification::create([
+        $notification = TenantNotification::create([
             'tenant_id' => $tenant->id,
             'message'   => $request->message,
             'sent_by'   => 'SuperAdmin',
         ]);
+
+        SuperAdminMessageSent::dispatch(
+            $notification->id,
+            $request->message,
+            $tenant->id,
+        );
 
         return back()->with('success', "Notificacion enviada a \"{$tenant->name}\".");
     }
