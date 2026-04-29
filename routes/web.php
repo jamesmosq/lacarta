@@ -33,5 +33,6 @@ Route::prefix('/superadmin')->name('superadmin.')->group(function () {
         Route::post('/impersonate/exit',                  [SuperAdminController::class, 'stopImpersonating'])->name('impersonate.exit');
         Route::post('/tenant/{tenant}/notify',            [SuperAdminController::class, 'sendNotification'])->name('tenant.notify');
         Route::post('/tenant/{tenant}/reset-password',   [SuperAdminController::class, 'resetOwnerPassword'])->name('tenant.reset_password');
+        Route::post('/broadcast',                        [SuperAdminController::class, 'broadcastAll'])->name('broadcast');
     });
 });

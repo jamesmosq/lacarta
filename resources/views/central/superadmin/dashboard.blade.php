@@ -9,6 +9,13 @@
         <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p class="text-gray-500 text-sm mt-1">Vision global de la plataforma</p>
     </div>
+    <button onclick="broadcastAll()"
+            class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+        </svg>
+        Mensaje a todos
+    </button>
 </div>
 
 {{-- KPIs --}}
@@ -58,8 +65,18 @@
                 @foreach($tenants as $tenant)
                 <tr class="hover:bg-gray-50 transition {{ !$tenant->is_active ? 'opacity-60' : '' }}">
                     <td class="px-6 py-4">
-                        <p class="font-semibold text-gray-900">{{ $tenant->name }}</p>
-                        <p class="text-gray-400 text-xs font-mono">{{ $tenant->slug }}</p>
+                        <div class="flex items-start gap-2">
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ $tenant->name }}</p>
+                                <p class="text-gray-400 text-xs font-mono">{{ $tenant->slug }}</p>
+                            </div>
+                            @if(($activeOrdersPerTenant[$tenant->id] ?? 0) > 0)
+                            <span class="mt-0.5 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium flex-shrink-0">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
+                                {{ $activeOrdersPerTenant[$tenant->id] }} activos
+                            </span>
+                            @endif
+                        </div>
                     </td>
                     <td class="px-6 py-4 text-gray-600">{{ $tenant->email }}</td>
                     <td class="px-6 py-4">
@@ -102,6 +119,16 @@
                                 </svg>
                                 Menu
                             </a>
+                            {{-- Mensaje directo --}}
+                            <button onclick="sendMessage('{{ $tenant->id }}', '{{ addslashes($tenant->name) }}')"
+                                    class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
+                                    title="Enviar mensaje">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                                </svg>
+                                Mensaje
+                            </button>
+
                             {{-- Detalle interno --}}
                             <a href="{{ route('superadmin.tenant.detail', $tenant->id) }}"
                                class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
@@ -157,6 +184,76 @@
 
 @push('scripts')
 <script>
+const csrf = document.querySelector('meta[name=csrf-token]').content;
+
+function sendMessage(tenantId, tenantName) {
+    Swal.fire({
+        title: 'Mensaje para ' + tenantName,
+        input: 'textarea',
+        inputPlaceholder: 'Escribe el mensaje... (máx. 500 caracteres)',
+        inputAttributes: { maxlength: 500, rows: 3 },
+        showCancelButton: true,
+        confirmButtonText: 'Enviar',
+        confirmButtonColor: '#2563eb',
+        cancelButtonText: 'Cancelar',
+        showLoaderOnConfirm: true,
+        preConfirm: (message) => {
+            if (!message.trim()) {
+                Swal.showValidationMessage('El mensaje no puede estar vacío');
+                return false;
+            }
+            return fetch('/superadmin/tenant/' + tenantId + '/notify', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ message: message.trim() }),
+            }).then(r => {
+                if (!r.ok) throw new Error();
+                return r.json();
+            }).catch(() => Swal.showValidationMessage('Error al enviar el mensaje'));
+        },
+        allowOutsideClick: () => !Swal.isLoading(),
+    }).then(result => {
+        if (result.isConfirmed) {
+            Swal.fire({ icon: 'success', title: '¡Enviado!', text: 'El mensaje llegará en tiempo real a ' + tenantName, timer: 2000, showConfirmButton: false });
+        }
+    });
+}
+
+function broadcastAll() {
+    Swal.fire({
+        title: 'Mensaje a todos los restaurantes',
+        text: 'Llegará en tiempo real a todos los restaurantes activos.',
+        input: 'textarea',
+        inputPlaceholder: 'Escribe el mensaje... (máx. 500 caracteres)',
+        inputAttributes: { maxlength: 500, rows: 3 },
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Enviar a todos',
+        confirmButtonColor: '#2563eb',
+        cancelButtonText: 'Cancelar',
+        showLoaderOnConfirm: true,
+        preConfirm: (message) => {
+            if (!message.trim()) {
+                Swal.showValidationMessage('El mensaje no puede estar vacío');
+                return false;
+            }
+            return fetch('/superadmin/broadcast', {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ message: message.trim() }),
+            }).then(r => {
+                if (!r.ok) throw new Error();
+                return r.json();
+            }).catch(() => Swal.showValidationMessage('Error al enviar el broadcast'));
+        },
+        allowOutsideClick: () => !Swal.isLoading(),
+    }).then(result => {
+        if (result.isConfirmed) {
+            Swal.fire({ icon: 'success', title: '¡Broadcast enviado!', text: 'Mensaje enviado a ' + result.value.count + ' restaurantes.', timer: 2500, showConfirmButton: false });
+        }
+    });
+}
+
 function confirmImpersonate(id, name) {
     Swal.fire({
         title: '¿Entrar como ' + name + '?',

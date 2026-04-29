@@ -17,16 +17,20 @@ class SuperAdminController extends Controller
     {
         $tenants = Tenant::orderBy('name')->get();
 
-        $totalRevenue = 0;
-        $totalOrders  = 0;
+        $totalRevenue          = 0;
+        $totalOrders           = 0;
+        $activeOrdersPerTenant = [];
 
         foreach ($tenants->where('is_active', true) as $tenant) {
             try {
                 tenancy()->initialize($tenant);
                 $totalRevenue += \App\Models\Bill::whereDate('paid_at', today())->sum('total');
                 $totalOrders  += \App\Models\Order::whereDate('created_at', today())->count();
+                $activeOrdersPerTenant[$tenant->id] = \App\Models\Order::whereIn('status', ['pending', 'preparing', 'ready'])
+                    ->whereDate('created_at', today())
+                    ->count();
             } catch (\Throwable $e) {
-                // skip tenant if schema unreachable
+                $activeOrdersPerTenant[$tenant->id] = 0;
             } finally {
                 try { tenancy()->end(); } catch (\Throwable) {}
             }
@@ -38,7 +42,8 @@ class SuperAdminController extends Controller
             'tenants',
             'totalRevenue',
             'totalOrders',
-            'avgTicket'
+            'avgTicket',
+            'activeOrdersPerTenant'
         ));
     }
 
@@ -206,6 +211,40 @@ class SuperAdminController extends Controller
             $tenant->id,
         );
 
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
         return back()->with('success', "Notificacion enviada a \"{$tenant->name}\".");
+    }
+
+    public function broadcastAll(Request $request)
+    {
+        $request->validate(['message' => 'required|string|max:500']);
+
+        $tenants = Tenant::where('is_active', true)->get();
+        $count   = 0;
+
+        foreach ($tenants as $tenant) {
+            $notification = TenantNotification::create([
+                'tenant_id' => $tenant->id,
+                'message'   => $request->message,
+                'sent_by'   => 'SuperAdmin',
+            ]);
+
+            SuperAdminMessageSent::dispatch(
+                $notification->id,
+                $request->message,
+                $tenant->id,
+            );
+
+            $count++;
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'count' => $count]);
+        }
+
+        return back()->with('success', "Mensaje enviado a {$count} restaurantes activos.");
     }
 }
