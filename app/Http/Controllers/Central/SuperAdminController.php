@@ -135,18 +135,17 @@ class SuperAdminController extends Controller
         try {
             tenancy()->initialize($tenant);
             $owner = \App\Models\TenantUser::where('role', 'owner')->first();
-
-            if (!$owner) {
-                tenancy()->end();
-                return back()->with('error', 'Este restaurante no tiene un owner registrado.');
-            }
-
-            Auth::guard('web')->login($owner);
             tenancy()->end();
         } catch (\Throwable $e) {
-            tenancy()->end();
+            try { tenancy()->end(); } catch (\Throwable) {}
             return back()->with('error', 'No se pudo acceder al esquema del restaurante.');
         }
+
+        if (!$owner) {
+            return back()->with('error', 'Este restaurante no tiene un owner registrado.');
+        }
+
+        Auth::guard('web')->login($owner);
 
         session([
             'impersonating_as_superadmin' => true,
